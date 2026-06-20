@@ -24,6 +24,8 @@ Your goals:
 8. Use update_context if they share avoided foods or dietary restrictions
 9. Always reccomend places nearby, and suggest dishes from the rewritten menu that might feel good based on their preferences and challenges
 10. If the person says they want to challenge something, offer them locations near them to try out. If they specify a location, include that in the challenge, if not, then leave it as a challenge without a location specified.
+11. When a user asks about a specific restaurant, ask if they would like to see its menu, and if so, use get_restaurant_menu to fetch and rewrite it for them in case they want to try it out. 
+12. Do not tell a user to search up a restaurant on their own, always offer to fetch the menu for them and rewrite it with recovery-friendly language. If you cannot find the menu, say their menu is not available but you can still help them navigate the restaurant based on their preferences and challenges.
 
 Rules:
 - Never push. If someone isn't ready, validate that and move on.
@@ -92,7 +94,19 @@ TOOLS = [
             },
             "required": ["recommendations"]
         }
-    }
+    },
+    {
+        "name": "get_restaurant_menu",
+        "description": "Fetch and rewrite the menu for a specific restaurant by name to show the user recovery-friendly descriptions",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "restaurant_name": {"type": "string"},
+                "place_id": {"type": "string", "description": "Google Place ID if known"}
+            },
+            "required": ["restaurant_name"]
+        }
+    }   
 ]
 
 def build_menu_summary(rewritten_menu: list[dict]) -> str:
@@ -181,6 +195,36 @@ def call_model(state: ChatWorkflowState) -> ChatWorkflowState:
                     "tool_use_id": block.id,
                     "content": rec_text
                 })
+            elif block.name == "get_restaurant_menu":
+                print(f"🍽 Fetching menu for: {block.input.get('restaurant_name')}")
+                import requests
+                restaurant_name = block.input.get("restaurant_name", "")
+                place_id = block.input.get("place_id", restaurant_name)
+                
+                # call your own menu endpoint
+                res = requests.get(
+                    f"http://localhost:8000/menu/{place_id}",
+                    params={"website": f"https://www.google.com/search?q={restaurant_name}+menu", "name": restaurant_name}
+                )
+                menu_data = res.json()
+                menu = menu_data.get("menu", [])
+                
+                if menu:
+                    summary = "\n".join([f"- {d['name']}: {d['rewritten_description']}" for d in menu[:8]])
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": f"Here is the rewritten menu for {restaurant_name}:\n{summary}"
+                    })
+                else:
+                    print(f"⚠️ Could not fetch menu for {restaurant_name}")
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": f"Could not find menu for {restaurant_name}"
+                    })
+
+
         elif block.type == "text" and block.text:
             assistant_text = block.text
 
