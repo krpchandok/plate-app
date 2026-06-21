@@ -3,6 +3,5 @@ __pycache__/
 *.pyc
 *.pyo
 .env
-outputs/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
