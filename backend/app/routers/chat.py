@@ -6,9 +6,7 @@ from starlette.websockets import WebSocketDisconnect
 from services.chat_service import bot_reply, get_greeting
 
 router = APIRouter()
-
-with open("outputs/rewritten_menu.json", "r") as f:
-    rewritten_menu = json.load(f)
+rewritten_menu = {}
 
 class ChallengeCreate(BaseModel):
     session_id: str
